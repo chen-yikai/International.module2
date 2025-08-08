@@ -10,6 +10,7 @@ class NavController : ViewModel() {
     private val initScreen = Screen.Home
     var currentNav by mutableStateOf(initScreen)
     var navStack = mutableStateListOf<Screen>()
+    var reloadKey by mutableStateOf(0)
 
     init {
         navStack.add(initScreen)

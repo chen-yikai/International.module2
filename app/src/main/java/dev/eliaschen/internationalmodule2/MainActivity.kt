@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
 import androidx.lifecycle.ViewModelProvider
 import dev.eliaschen.internationalmodule2.model.GameData
 import dev.eliaschen.internationalmodule2.model.NavController
@@ -29,7 +30,10 @@ class MainActivity : ComponentActivity() {
                 val nav = ViewModelProvider(this)[NavController::class.java]
                 val game = ViewModelProvider(this)[GameData::class.java]
 
-                CompositionLocalProvider(LocalNavController provides nav, LocalGameData provides game) {
+                CompositionLocalProvider(
+                    LocalNavController provides nav,
+                    LocalGameData provides game
+                ) {
                     Surface {
                         BackHandler {
                             if (nav.navStack.size > 1) {
@@ -38,11 +42,12 @@ class MainActivity : ComponentActivity() {
                                 finish()
                             }
                         }
-
-                        when (nav.currentNav) {
-                            Screen.Home -> HomeScreen()
-                            Screen.Game -> GameScreen()
-                            else -> Text("error")
+                        key(nav.reloadKey) {
+                            when (nav.currentNav) {
+                                Screen.Home -> HomeScreen()
+                                Screen.Game -> GameScreen()
+                                else -> Text("error")
+                            }
                         }
                     }
                 }

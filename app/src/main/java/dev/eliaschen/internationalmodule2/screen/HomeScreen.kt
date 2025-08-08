@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +32,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.eliaschen.internationalmodule2.LocalGameData
 import dev.eliaschen.internationalmodule2.LocalNavController
 import dev.eliaschen.internationalmodule2.R
 import dev.eliaschen.internationalmodule2.model.Screen
@@ -36,18 +40,37 @@ import dev.eliaschen.internationalmodule2.model.Screen
 @Composable
 fun HomeScreen() {
     val nav = LocalNavController.current
-    var playerName by remember { mutableStateOf("") }
-    val actionButtons = listOf(
-        Pair("Start Game") { nav.navTo(Screen.Game) },
+    val game = LocalGameData.current
+    var showInvalidDialog by remember { mutableStateOf(false) }
+    val actionButtons = listOf(Pair("Start Game") {
+        if (game.playerName.isNotEmpty()) {
+            nav.navTo(Screen.Game)
+        } else {
+            showInvalidDialog = true
+        }
+    },
         Pair("Rankings") { nav.navTo(Screen.Rank) },
-        Pair("Setting") { nav.navTo(Screen.Setting) }
-    )
+        Pair("Setting") { nav.navTo(Screen.Setting) })
+
+    LaunchedEffect(game.playerName) {
+        game.save()
+    }
+
+    if (showInvalidDialog) {
+        AlertDialog(
+            onDismissRequest = { showInvalidDialog = false },
+            title = { Text("Invalid") },
+            text = { Text("Please enter the valid player name") },
+            confirmButton = { Button(onClick = { showInvalidDialog = false }) { Text("Ok") } },
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Image(
             painter = painterResource(R.drawable.bg),
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
         )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -61,9 +84,18 @@ fun HomeScreen() {
             Text("Go Skiing", fontWeight = FontWeight.Bold, fontSize = 40.sp)
             Spacer(Modifier.height(20.dp))
             OutlinedTextField(
-                value = playerName,
-                onValueChange = { playerName = it },
-                placeholder = { Text("Player Name") })
+                value = game.playerName,
+                singleLine = true,
+                onValueChange = { game.playerName = it },
+                placeholder = { Text("Player Name") },
+                keyboardActions = KeyboardActions(onDone = {
+                    if (game.playerName.isEmpty()) {
+                        showInvalidDialog = true
+                    } else {
+                        nav.navTo(Screen.Game)
+                    }
+                })
+            )
             Spacer(Modifier.height(30.dp))
             actionButtons.forEach {
                 FilledTonalButton(
