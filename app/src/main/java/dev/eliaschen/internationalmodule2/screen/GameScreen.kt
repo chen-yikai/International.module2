@@ -1,5 +1,7 @@
 package dev.eliaschen.internationalmodule2.screen
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
@@ -52,6 +54,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.draw
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
@@ -97,7 +101,7 @@ fun GameScreen() {
     val playerY = remember { Animatable(0f) }
 
     val firstItem = remember { Animatable(0f) }
-    val firstItemObject = remember { mutableStateListOf<Pair<Int, Int>>() }
+    val firstItemObject = remember { mutableStateListOf<Pair<GameObject, Int>>() }
     val objectBucket = remember { mutableStateListOf<Int>() }
     val itemObjects = listOf(firstItemObject)
 
@@ -110,9 +114,17 @@ fun GameScreen() {
         repeat(itemCount) {
             val random = (0..2).random()
             val coin = random == 0 || random == 1
+            var pos = 0
+            while (true) {
+                pos = (4..15).random()
+                if (!objectBucket.contains(pos)) {
+                    objectBucket.add(pos)
+                    break
+                }
+            }
             itemObjects[index].add(
                 Pair(
-                    if (coin) R.drawable.coin else R.drawable.obstacle, (1..10).random() * 10
+                    if (coin) GameObject.Coin else GameObject.Obstacle, pos
                 )
             )
         }
@@ -122,9 +134,9 @@ fun GameScreen() {
         while (isActive) {
             objectBucket.clear()
             getItem(0)
-            firstItem.snapTo(device.screenWidthDp.toFloat())
+            firstItem.snapTo(0f)
             firstItem.animateTo(
-                -device.screenWidthDp.toFloat(), tween(durationMillis = 3000, easing = LinearEasing)
+                1f, tween(durationMillis = 3000, easing = LinearEasing)
             )
         }
     }
@@ -213,6 +225,15 @@ fun GameScreen() {
         }
 
         val playerBitmap = ImageBitmap.imageResource(R.drawable.skiing_person)
+        val coinBitmapOriginal = BitmapFactory.decodeResource(context.resources, R.drawable.coin)
+        val coinBitmap = Bitmap.createScaledBitmap(
+            coinBitmapOriginal,
+            (coinBitmapOriginal.width * 0.1f).toInt(),
+            (coinBitmapOriginal.height * 0.1f).toInt(),
+            true
+        )
+        val obstacleBitmap = ImageBitmap.imageResource(R.drawable.obstacle)
+
         Canvas(
             modifier = Modifier
                 .zIndex(2f)
@@ -220,11 +241,38 @@ fun GameScreen() {
         ) {
             val triangleStart = Offset(size.width, size.height - 50f)
             val triangleEnd = Offset(0f, size.height - 230f)
+
             val dx = triangleEnd.x - triangleStart.x
             val dy = triangleEnd.y - triangleStart.y
             val angleRadians = atan2(dy, dx)
-
             slopeAngle = toDegrees(angleRadians.toDouble()).toFloat()
+
+            val slopeCenter = (triangleStart + triangleEnd) / 2f
+            val scaleFactor = 0.25f
+            val playerOffset =
+                slopeCenter - Offset(playerBitmap.width / 2f, playerBitmap.height.toFloat())
+            val slopeLength = (triangleEnd - triangleStart).getDistance()
+            val firstItemW = firstItemObject.sumOf { it.second }
+            val space = 100f
+
+            rotate(degrees = slopeAngle - 180f, pivot = triangleStart) {
+                translate(left = -(firstItem.value * (slopeLength + space * 15f))) {
+                    firstItemObject.forEachIndexed { index, item ->
+                        val objectBitmap = when (item.first) {
+                            GameObject.Coin -> coinBitmap.asImageBitmap()
+                            GameObject.Obstacle -> obstacleBitmap
+                        }
+
+                        val sideOffset = if (item.first == GameObject.Coin) -10f else 10f
+
+                        val objectOffset = triangleStart - Offset(
+                            0f, objectBitmap.height.toFloat() - sideOffset
+                        ) + Offset(item.second.toFloat() * space, 0f)
+
+                        drawImage(image = objectBitmap, topLeft = objectOffset)
+                    }
+                }
+            }
 
             drawPath(Path().apply {
                 moveTo(0f, size.height)
@@ -233,57 +281,20 @@ fun GameScreen() {
                 lineTo(triangleEnd.x, triangleEnd.y)
                 close()
             }, color = Color.White)
-        }
 
-        Image(bitmap = playerBitmap,
-            contentDescription = null,
-            modifier = Modifier
-                .size(80.dp)
-                .rotate(slopeAngle - 180f)
-                .align(Alignment.BottomCenter)
-                .offset((-50).dp, (-40).dp)
-                .graphicsLayer {
-                    translationY = -(playerY.value * 400)
-                }
-                .onGloballyPositioned {
-                    val position = it.localToWindow(Offset.Zero)
-                    val size = it.size
-                    playerRect = Rect(position, size.toSize())
-                }
-                .zIndex(3f))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .zIndex(1f)
-                .rotate(slopeAngle - 180f)
-                .align(Alignment.BottomEnd)
-                .offset(firstItem.value.dp, (-47).dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            firstItemObject.forEachIndexed { index, item ->
-                var objectRect by remember { mutableStateOf<Rect>(Rect(Offset.Zero, Size.Zero)) }
-                LaunchedEffect(firstItem.value) {
-                    if (playerRect.overlaps(objectRect) && !objectBucket.contains(index)) {
-                        objectBucket.add(index)
-                        Log.e("overlap", "The player overlaps the object $index")
-                        firstItemObject.removeAt(index)
+            rotate(degrees = slopeAngle - 180f) {
+                scale(
+                    scale = scaleFactor, pivot = slopeCenter
+                ) {
+                    translate(top = -(playerY.value * 400f) / scaleFactor) {
+                        drawImage(image = playerBitmap, topLeft = playerOffset)
                     }
                 }
-                Image(
-                    painter = painterResource(item.first),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .onGloballyPositioned { layout ->
-                            val position = layout.localToWindow(Offset.Zero)
-                            val size = layout.size
-                            objectRect = Rect(position, size.toSize())
-                        }
-                        .size(32.dp)
-                        .padding(bottom = if (item.first == R.drawable.coin) 10.dp else 0.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Spacer(Modifier.width(item.second.dp))
             }
         }
     }
+}
+
+enum class GameObject {
+    Coin, Obstacle
 }
