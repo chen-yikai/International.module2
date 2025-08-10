@@ -40,7 +40,7 @@ class GameData(private val context: Application) : AndroidViewModel(context) {
     var gameOver by mutableStateOf(false)
 
     init {
-//        playerName = config.getString(LocalConfig.PlayerName.name, "") ?: ""
+        playerName = config.getString(LocalConfig.PlayerName.name, "") ?: ""
         playerColorHue = config.getFloat(LocalConfig.PlayerColor.name, 0f) ?: 0f
         if (!file.exists()) file.writeText("[]")
         getRank()
