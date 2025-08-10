@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -100,7 +101,7 @@ fun HomeScreen() {
             actionButtons.forEach {
                 FilledTonalButton(
                     onClick = it.second,
-                    shape = RectangleShape,
+                    shape = RoundedCornerShape(10.dp ),
                     modifier = Modifier
                         .widthIn(max = 200.dp)
                         .fillMaxWidth()

@@ -16,6 +16,8 @@ import dev.eliaschen.internationalmodule2.model.NavController
 import dev.eliaschen.internationalmodule2.model.Screen
 import dev.eliaschen.internationalmodule2.screen.GameScreen
 import dev.eliaschen.internationalmodule2.screen.HomeScreen
+import dev.eliaschen.internationalmodule2.screen.RankScreen
+import dev.eliaschen.internationalmodule2.screen.SettingScreen
 import dev.eliaschen.internationalmodule2.ui.theme.Internationalmodule2Theme
 
 val LocalNavController = compositionLocalOf<NavController> { error("Nav Controller not found") }
@@ -46,6 +48,8 @@ class MainActivity : ComponentActivity() {
                             when (nav.currentNav) {
                                 Screen.Home -> HomeScreen()
                                 Screen.Game -> GameScreen()
+                                Screen.Rank -> RankScreen()
+                                Screen.Setting -> SettingScreen()
                                 else -> Text("error")
                             }
                         }

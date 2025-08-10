@@ -2,7 +2,6 @@ package dev.eliaschen.internationalmodule2.screen
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
@@ -13,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -49,9 +52,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,9 +65,8 @@ import androidx.compose.ui.zIndex
 import dev.eliaschen.internationalmodule2.LocalGameData
 import dev.eliaschen.internationalmodule2.LocalNavController
 import dev.eliaschen.internationalmodule2.R
-import kotlinx.coroutines.CoroutineScope
+import dev.eliaschen.internationalmodule2.model.Screen
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -82,20 +81,88 @@ fun GameScreen() {
     val game = LocalGameData.current
     val device = LocalConfiguration.current
     val scope = rememberCoroutineScope()
+    val deviceWidth = device.screenWidthDp.toFloat()
+
+    val treeMovementDuration = 3000
+    val gameObjectDuration = 4500
 
     val treesMovement = remember { Animatable(0f) }
-    val secondTreeMovement = remember { Animatable(0f) }
-    val playerY = remember { Animatable(0f) }
-    val firstItem = remember { Animatable(0f) }
+    var oldTreesMovement by remember { mutableFloatStateOf(0f) }
 
-    val firstItemObject = remember { mutableStateListOf<Pair<GameObject, Int>>() }
+    val secondTreeMovement = remember { Animatable(0f) }
+    var oldSecondTreeMovement by remember { mutableFloatStateOf(0f) }
+
+    val gameObject = remember { Animatable(0f) }
+    var oldGameObject by remember { mutableFloatStateOf(0f) }
+
+    var gameObjectKey by remember { mutableIntStateOf(0) }
+    var treeMovementKey by remember { mutableIntStateOf(0) }
+    var secondTreeMovementKey by remember { mutableIntStateOf(0) }
+
+    val playerY = remember { Animatable(0f) }
+
+    val gameObjects = remember { mutableStateListOf<Pair<GameObject, Int>>() }
     val objectBucket = remember { mutableStateListOf<Int>() }
-    val itemObjects = listOf(firstItemObject)
+    val itemObjects = listOf(gameObjects)
 
     var slopeAngle by remember { mutableFloatStateOf(0f) }
 
     var showGameOverDialog by remember { mutableStateOf(false) }
+    var showQuitDialog by remember { mutableStateOf(false) }
     var isSuspended by remember { mutableStateOf(false) }
+
+    var speedUp by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isSuspended) {
+        if (isSuspended) {
+            oldTreesMovement = treesMovement.value
+            treesMovement.stop()
+        } else {
+            val remainingDistance = oldTreesMovement - (-deviceWidth)
+            treesMovement.animateTo(
+                targetValue = -deviceWidth,
+                animationSpec = tween(
+                    durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                    easing = LinearEasing
+                )
+            )
+            treeMovementKey++
+        }
+    }
+
+    LaunchedEffect(isSuspended) {
+        if (isSuspended) {
+            oldSecondTreeMovement = secondTreeMovement.value
+            secondTreeMovement.stop()
+        } else {
+            val remainingDistance = oldSecondTreeMovement
+            secondTreeMovement.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                    easing = LinearEasing
+                )
+            )
+            secondTreeMovementKey++
+        }
+    }
+
+    LaunchedEffect(isSuspended) {
+        if (isSuspended) {
+            oldGameObject = gameObject.value
+            gameObject.stop()
+        } else {
+            val remainingDistance = 1f - oldGameObject
+            gameObject.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = (remainingDistance / (1f / gameObjectDuration)).toInt(),
+                    easing = LinearEasing
+                )
+            )
+            gameObjectKey++
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -116,6 +183,7 @@ fun GameScreen() {
         itemObjects[index].clear()
         val itemCount = (0..5).random()
         val temp = mutableStateListOf<Int>()
+
         repeat(itemCount) {
             val random = (0..2).random()
             val coin = random == 0 || random == 1
@@ -135,29 +203,30 @@ fun GameScreen() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(gameObjectKey) {
         while (isActive) {
             objectBucket.clear()
             getItem(0)
-            firstItem.snapTo(0f)
-            firstItem.animateTo(
+            gameObject.snapTo(0f)
+            gameObject.animateTo(
                 1f, tween(durationMillis = 4500, easing = LinearEasing)
             )
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(treeMovementKey) {
         while (isActive) {
-            treesMovement.animateTo(
-                -device.screenWidthDp.toFloat(), tween(durationMillis = 3000, easing = LinearEasing)
-            )
             treesMovement.snapTo(0f)
+            treesMovement.animateTo(
+                -deviceWidth,
+                tween(durationMillis = 3000, easing = LinearEasing)
+            )
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(secondTreeMovementKey) {
         while (isActive) {
-            secondTreeMovement.snapTo(device.screenWidthDp.toFloat())
+            secondTreeMovement.snapTo(deviceWidth)
             secondTreeMovement.animateTo(
                 0f, tween(durationMillis = 3000, easing = LinearEasing)
             )
@@ -174,13 +243,34 @@ fun GameScreen() {
     Box(modifier = Modifier
         .fillMaxSize()
         .pointerInput(Unit) {
+            detectHorizontalDragGestures { _, dragAmount ->
+                if (dragAmount > 0) showQuitDialog = true
+            }
+        }
+        .pointerInput(Unit) {
             detectTapGestures {
-                jump()
+                if (!isSuspended) jump()
             }
-            detectHorizontalDragGestures { change, dragAmount ->
+        }
+        .pointerInput(Unit) {
+            detectVerticalDragGestures { _, dragAmount ->
+                if (dragAmount > 0) speedUp = true
             }
-        }) {
+        }
+    ) {
         if (showGameOverDialog) GameOverDialog() {}
+        if (showQuitDialog) {
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text("Quit Game") },
+                text = { Text("The game is in progress. Are you sure to quit?") },
+                confirmButton = { Button(onClick = { nav.navTo(Screen.Home) }) { Text("Yes") } },
+                dismissButton = {
+                    FilledTonalButton(onClick = {
+                        showQuitDialog = false
+                    }) { Text("No") }
+                })
+        }
         if (isSuspended) Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -285,6 +375,7 @@ fun GameScreen() {
             val playerOffset = slopeCenter - Offset(
                 playerBitmap.width / 2f, playerBitmap.height.toFloat()
             ) - Offset(0f, playerY.value * 400f) + Offset(-100f, playerBitmap.height / 2f)
+
             val slopeLength = (triangleEnd - triangleStart).getDistance()
             val space = 100f
             val playerRect = Rect(
@@ -292,7 +383,7 @@ fun GameScreen() {
             )
 
             rotate(degrees = slopeAngle - 180f, pivot = triangleStart) {
-                firstItemObject.forEachIndexed { index, item ->
+                gameObjects.forEachIndexed { index, item ->
                     val objectBitmap = when (item.first) {
                         GameObject.Coin -> coinBitmap.asImageBitmap()
                         GameObject.Obstacle -> obstacleBitmap
@@ -304,7 +395,7 @@ fun GameScreen() {
                         0f, objectBitmap.height.toFloat() - sideOffset
                     ) + Offset(
                         item.second.toFloat() * space, 0f
-                    ) + Offset(-(firstItem.value * (slopeLength + space * 15f)), 0f)
+                    ) + Offset(-(gameObject.value * (slopeLength + space * 15f)), 0f)
 
                     val rect = Rect(
                         objectOffset,
@@ -318,7 +409,7 @@ fun GameScreen() {
                                     when (item.first) {
                                         GameObject.Coin -> {
                                             game.score += 10
-                                            firstItemObject.removeAt(index)
+                                            gameObjects.removeAt(index)
                                         }
 
                                         GameObject.Obstacle -> {
