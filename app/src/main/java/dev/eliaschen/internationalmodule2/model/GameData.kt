@@ -35,7 +35,7 @@ class GameData(private val context: Application) : AndroidViewModel(context) {
     var playerColorHue by mutableFloatStateOf(0f)
 
     var playerName by mutableStateOf("")
-    var score by mutableIntStateOf(0)
+    var score by mutableIntStateOf(10)
     var time by mutableIntStateOf(0)
     var gameOver by mutableStateOf(false)
 
