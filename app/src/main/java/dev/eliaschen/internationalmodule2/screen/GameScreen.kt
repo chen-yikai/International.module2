@@ -253,9 +253,8 @@ fun GameScreen() {
 
     LaunchedEffect(Unit) {
         while (isActive) {
-            game.time++
+            if (!game.gameOver && !isSuspended) game.time++
             delay(1000)
-            if (game.gameOver) break
         }
     }
 
@@ -264,6 +263,7 @@ fun GameScreen() {
             showGameOverDialog = true
             isSuspended = true
             gameOverSound.start()
+            game.resetGame()
         }
     }
 
@@ -304,7 +304,13 @@ fun GameScreen() {
                 onDismissRequest = { },
                 title = { Text("Quit Game") },
                 text = { Text("The game is in progress. Are you sure to quit?") },
-                confirmButton = { Button(onClick = { nav.navTo(Screen.Home) }) { Text("Yes") } },
+                confirmButton = {
+                    Button(onClick = {
+                        game.gameOver = true
+                        game.resetGame()
+                        nav.navTo(Screen.Home)
+                    }) { Text("Yes") }
+                },
                 dismissButton = {
                     FilledTonalButton(onClick = {
                         showQuitDialog = false
