@@ -2,6 +2,7 @@ package dev.eliaschen.internationalmodule2.screen
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
@@ -33,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -81,11 +83,24 @@ fun GameScreen() {
     val game = LocalGameData.current
     val device = LocalConfiguration.current
     val scope = rememberCoroutineScope()
-    val deviceWidth = device.screenWidthDp.toFloat()
 
+    // audio
+    val gameBackgroundMusic = remember {
+        MediaPlayer.create(context, R.raw.bgm).apply {
+            isLooping = true
+            setVolume(0.5f, 0.5f)
+        }
+    }
+    val coinSound = remember { MediaPlayer.create(context, R.raw.coin) }
+    val jumpSound = remember { MediaPlayer.create(context, R.raw.jump) }
+    val gameOverSound = remember { MediaPlayer.create(context, R.raw.game_over) }
+
+    // static value
+    val deviceWidth = device.screenWidthDp.toFloat()
     val treeMovementDuration = 3000
     val gameObjectDuration = 4500
 
+    // object movement
     val treesMovement = remember { Animatable(0f) }
     var oldTreesMovement by remember { mutableFloatStateOf(0f) }
 
@@ -99,6 +114,7 @@ fun GameScreen() {
     var treeMovementKey by remember { mutableIntStateOf(0) }
     var secondTreeMovementKey by remember { mutableIntStateOf(0) }
 
+    // player movement
     val playerY = remember { Animatable(0f) }
 
     val gameObjects = remember { mutableStateListOf<Pair<GameObject, Int>>() }
@@ -107,11 +123,28 @@ fun GameScreen() {
 
     var slopeAngle by remember { mutableFloatStateOf(0f) }
 
+    // game status
     var showGameOverDialog by remember { mutableStateOf(false) }
     var showQuitDialog by remember { mutableStateOf(false) }
     var isSuspended by remember { mutableStateOf(false) }
-
     var speedUp by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isSuspended) {
+        if (!isSuspended) {
+            gameBackgroundMusic.start()
+        } else {
+            gameBackgroundMusic.pause()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            gameBackgroundMusic.release()
+            coinSound.release()
+            jumpSound.release()
+            gameOverSound.release()
+        }
+    }
 
     LaunchedEffect(isSuspended) {
         if (isSuspended) {
@@ -164,32 +197,17 @@ fun GameScreen() {
         }
     }
 
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            game.time++
-            delay(1000)
-            if (game.gameOver) break
-        }
-    }
-
-    LaunchedEffect(game.gameOver) {
-        if (game.gameOver) {
-            showGameOverDialog = true
-            isSuspended = true
-        }
-    }
-
     fun getItem(index: Int) {
         itemObjects[index].clear()
         val itemCount = (0..5).random()
         val temp = mutableStateListOf<Int>()
 
         repeat(itemCount) {
-            val random = (0..2).random()
-            val coin = random == 0 || random == 1
+            val random = (0..3).random()
+            val coin = random == 0 || random == 1 || random == 2
             var pos = 0
             while (true) {
-                pos = (4..15).random()
+                pos = (5..15).random()
                 if (!temp.contains(pos)) {
                     temp.add(pos)
                     break
@@ -233,7 +251,29 @@ fun GameScreen() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            game.time++
+            delay(1000)
+            if (game.gameOver) break
+        }
+    }
+
+    LaunchedEffect(game.gameOver) {
+        if (game.gameOver) {
+            showGameOverDialog = true
+            isSuspended = true
+            gameOverSound.start()
+        }
+    }
+
+    LaunchedEffect(showQuitDialog) {
+        isSuspended = showQuitDialog
+    }
+
     fun jump() {
+        if (jumpSound.isPlaying) jumpSound.seekTo(0)
+        jumpSound.start()
         scope.launch {
             playerY.animateTo(1f, tween(durationMillis = 200, easing = EaseOut))
             playerY.animateTo(0f, tween(durationMillis = 600, easing = EaseIn))
@@ -408,6 +448,8 @@ fun GameScreen() {
                                 if (playerRect.overlaps(rect)) {
                                     when (item.first) {
                                         GameObject.Coin -> {
+                                            if (coinSound.isPlaying) coinSound.seekTo(0)
+                                            coinSound.start()
                                             game.score += 10
                                             gameObjects.removeAt(index)
                                         }
