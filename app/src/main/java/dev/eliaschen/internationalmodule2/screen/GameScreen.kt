@@ -146,6 +146,10 @@ fun GameScreen() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        game.resetGame()
+    }
+
     LaunchedEffect(isSuspended) {
         if (isSuspended) {
             oldTreesMovement = treesMovement.value
@@ -263,7 +267,7 @@ fun GameScreen() {
             showGameOverDialog = true
             isSuspended = true
             gameOverSound.start()
-            game.resetGame()
+            game.addRank()
         }
     }
 
@@ -306,8 +310,6 @@ fun GameScreen() {
                 text = { Text("The game is in progress. Are you sure to quit?") },
                 confirmButton = {
                     Button(onClick = {
-                        game.gameOver = true
-                        game.resetGame()
                         nav.navTo(Screen.Home)
                     }) { Text("Yes") }
                 },
@@ -387,21 +389,29 @@ fun GameScreen() {
             )
         }
 
-        val playerBitmapOriginal =
+        val playerBitmapOriginal = remember {
             BitmapFactory.decodeResource(context.resources, R.drawable.skiing_person)
-        val playerBitmap = Bitmap.createScaledBitmap(
-            playerBitmapOriginal,
-            (playerBitmapOriginal.width * 0.12f).toInt(),
-            (playerBitmapOriginal.height * 0.12f).toInt(),
-            true
-        )
-        val coinBitmapOriginal = BitmapFactory.decodeResource(context.resources, R.drawable.coin)
-        val coinBitmap = Bitmap.createScaledBitmap(
+        }
+        val playerBitmap = remember {
+            game.adjustPlayerColor(
+                Bitmap.createScaledBitmap(
+                    playerBitmapOriginal,
+                    (playerBitmapOriginal.width * 0.12f).toInt(),
+                    (playerBitmapOriginal.height * 0.12f).toInt(),
+                    true
+                ), game.playerColorHue
+            )
+        }
+        val coinBitmapOriginal =
+            remember { BitmapFactory.decodeResource(context.resources, R.drawable.coin) }
+        val coinBitmap = remember {
+            Bitmap.createScaledBitmap(
             coinBitmapOriginal,
             (coinBitmapOriginal.width * 0.1f).toInt(),
             (coinBitmapOriginal.height * 0.1f).toInt(),
             true
-        )
+            )
+        }
         val obstacleBitmap = ImageBitmap.imageResource(R.drawable.obstacle)
 
         Canvas(

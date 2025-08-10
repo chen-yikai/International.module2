@@ -55,7 +55,6 @@ fun GameOverDialog(dismiss: () -> Unit) {
         FilledTonalButton(onClick = { nav.navTo(Screen.Rank) }) { Text("Go To Rankings") }
     }, dismissButton = {
         FilledTonalButton(onClick = {
-            game.resetGame()
             nav.reloadKey++
         }) { Text("Restart") }
     })
