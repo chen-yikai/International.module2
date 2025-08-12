@@ -3,17 +3,22 @@ package dev.eliaschen.internationalmodule2.screen
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,11 +32,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -76,6 +84,7 @@ import kotlinx.coroutines.withContext
 import java.lang.Math.toDegrees
 import kotlin.math.atan2
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameScreen() {
     val nav = LocalNavController.current
@@ -99,6 +108,7 @@ fun GameScreen() {
     val deviceWidth = device.screenWidthDp.toFloat()
     val treeMovementDuration = 3000
     val gameObjectDuration = 4500
+    val treeMovementVelocity = deviceWidth / treeMovementDuration
 
     // object movement
     val treesMovement = remember { Animatable(0f) }
@@ -128,6 +138,14 @@ fun GameScreen() {
     var showQuitDialog by remember { mutableStateOf(false) }
     var isSuspended by remember { mutableStateOf(false) }
     var speedUp by remember { mutableStateOf(false) }
+    var invincibilityMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(invincibilityMode) {
+        while (invincibilityMode && game.score > 0) {
+            game.score--
+            delay(1000L)
+        }
+    }
 
     LaunchedEffect(isSuspended) {
         if (!isSuspended) {
@@ -203,7 +221,7 @@ fun GameScreen() {
 
     fun getItem(index: Int) {
         itemObjects[index].clear()
-        val itemCount = (0..5).random()
+        val itemCount = (1..5).random()
         val temp = mutableStateListOf<Int>()
 
         repeat(itemCount) {
@@ -292,14 +310,23 @@ fun GameScreen() {
             }
         }
         .pointerInput(Unit) {
-            detectTapGestures {
-                if (!isSuspended) jump()
-            }
-        }
-        .pointerInput(Unit) {
             detectVerticalDragGestures { _, dragAmount ->
                 if (dragAmount > 0) speedUp = true
             }
+        }
+        .pointerInput(Unit) {
+            detectTapGestures(onTap = {
+                if (!isSuspended && !invincibilityMode) {
+                    jump()
+                }
+            }, onPress = {
+                delay(500L)
+                if (!isSuspended) {
+                    invincibilityMode = true
+                }
+                awaitRelease()
+                invincibilityMode = false
+            })
         }
     ) {
         if (showGameOverDialog) GameOverDialog() {}
@@ -373,6 +400,14 @@ fun GameScreen() {
                     )
                 }
                 Text("${game.time}s", fontWeight = FontWeight.Bold)
+                if (invincibilityMode) Text(
+                    "Invincibility Mode",
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(5.dp)
+                )
             }
         }
         repeat(2) {
@@ -392,24 +427,24 @@ fun GameScreen() {
         val playerBitmapOriginal = remember {
             BitmapFactory.decodeResource(context.resources, R.drawable.skiing_person)
         }
-        val playerBitmap = remember {
+        val playerBitmap = remember(invincibilityMode) {
             game.adjustPlayerColor(
                 Bitmap.createScaledBitmap(
                     playerBitmapOriginal,
                     (playerBitmapOriginal.width * 0.12f).toInt(),
                     (playerBitmapOriginal.height * 0.12f).toInt(),
                     true
-                ), game.playerColorHue
+                ), game.playerColorHue, invincibilityMode
             )
         }
         val coinBitmapOriginal =
             remember { BitmapFactory.decodeResource(context.resources, R.drawable.coin) }
         val coinBitmap = remember {
             Bitmap.createScaledBitmap(
-            coinBitmapOriginal,
-            (coinBitmapOriginal.width * 0.1f).toInt(),
-            (coinBitmapOriginal.height * 0.1f).toInt(),
-            true
+                coinBitmapOriginal,
+                (coinBitmapOriginal.width * 0.1f).toInt(),
+                (coinBitmapOriginal.height * 0.1f).toInt(),
+                true
             )
         }
         val obstacleBitmap = ImageBitmap.imageResource(R.drawable.obstacle)
@@ -471,7 +506,7 @@ fun GameScreen() {
                                         }
 
                                         GameObject.Obstacle -> {
-                                            game.gameOver = true
+                                            if (!invincibilityMode) game.gameOver = true
                                         }
                                     }
                                 }

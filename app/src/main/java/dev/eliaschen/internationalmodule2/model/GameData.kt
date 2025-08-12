@@ -53,7 +53,7 @@ class GameData(private val context: Application) : AndroidViewModel(context) {
 
     fun resetGame() {
         gameOver = false
-        score = 0
+        score = 10
         time = 0
     }
 
@@ -101,14 +101,18 @@ class GameData(private val context: Application) : AndroidViewModel(context) {
         })
     }
 
-    fun adjustPlayerColor(originalBitmap: Bitmap, hue: Float): Bitmap {
+    fun adjustPlayerColor(originalBitmap: Bitmap, hue: Float, black: Boolean = false): Bitmap {
         val bitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val targetColor = Color.hsv(hue, 0.54f, 0.97f)
         for (width in 0 until bitmap.width) {
             for (height in 0 until bitmap.height) {
                 val pixelColor = bitmap.getPixel(width, height)
                 if (pixelColor == android.graphics.Color.parseColor("#f87373")) {
-                    bitmap.setPixel(width, height, targetColor.toArgb())
+                    bitmap.setPixel(
+                        width,
+                        height,
+                        if (black) android.graphics.Color.BLACK else targetColor.toArgb()
+                    )
                 }
             }
         }

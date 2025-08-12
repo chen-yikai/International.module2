@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            Internationalmodule2Theme {
+            Internationalmodule2Theme(darkTheme = false) {
                 val nav = ViewModelProvider(this)[NavController::class.java]
                 val game = ViewModelProvider(this)[GameData::class.java]
 
