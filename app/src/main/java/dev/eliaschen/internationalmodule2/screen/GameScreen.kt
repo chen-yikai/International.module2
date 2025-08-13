@@ -1,8 +1,11 @@
 package dev.eliaschen.internationalmodule2.screen
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
@@ -62,10 +65,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.debugInspectorInfo
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +97,13 @@ fun GameScreen() {
     val context = LocalContext.current
     val game = LocalGameData.current
     val device = LocalConfiguration.current
+    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    fun vibrate() =
+        vibrator.vibrate(
+            VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE)
+        )
+
+
     val scope = rememberCoroutineScope()
 
     // audio
@@ -140,6 +153,67 @@ fun GameScreen() {
     var speedUp by remember { mutableStateOf(false) }
     var invincibilityMode by remember { mutableStateOf(false) }
 
+    val speedUpDuration = 3000
+    val speedUpFactor = 4
+    val speedUpVelocity = (deviceWidth / treeMovementDuration) * speedUpFactor
+
+    LaunchedEffect(speedUp) {
+        if (speedUp) {
+            launch {
+                var treePos = treesMovement.value
+                val targetPos = -deviceWidth
+                treesMovement.stop()
+                val startTime = System.currentTimeMillis()
+                while (true) {
+                    val elapsedTime = System.currentTimeMillis() - startTime
+                    treePos -= speedUpVelocity * 16
+                    if (elapsedTime >= speedUpDuration) break
+                    if (targetPos >= treePos) treePos = 0f
+                    treesMovement.snapTo(treePos)
+                    delay(16)
+                }
+
+                oldTreesMovement = treesMovement.value
+                val remainingDistance = oldTreesMovement - (-deviceWidth)
+                treesMovement.animateTo(
+                    targetValue = -deviceWidth,
+                    animationSpec = tween(
+                        durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                        easing = LinearEasing
+                    )
+                )
+                treeMovementKey++
+                speedUp = false
+            }
+            launch {
+                var treePos = secondTreeMovement.value
+                val targetPos = 0f
+                secondTreeMovement.stop()
+                val startTime = System.currentTimeMillis()
+                while (true) {
+                    val elapsedTime = System.currentTimeMillis() - startTime
+                    treePos -= speedUpVelocity * 16
+                    if (elapsedTime >= speedUpDuration) break
+                    if (targetPos >= treePos) treePos = deviceWidth
+                    secondTreeMovement.snapTo(treePos)
+                    delay(16)
+                }
+
+                oldSecondTreeMovement = secondTreeMovement.value
+                val remainingDistance = oldSecondTreeMovement
+                secondTreeMovement.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                        easing = LinearEasing
+                    )
+                )
+                secondTreeMovementKey++
+                speedUp = false
+            }
+        }
+    }
+
     LaunchedEffect(invincibilityMode) {
         while (invincibilityMode && game.score > 0) {
             game.score--
@@ -166,6 +240,7 @@ fun GameScreen() {
 
     LaunchedEffect(Unit) {
         game.resetGame()
+        vibrate()
     }
 
     LaunchedEffect(isSuspended) {
@@ -286,6 +361,7 @@ fun GameScreen() {
             isSuspended = true
             gameOverSound.start()
             game.addRank()
+            vibrate()
         }
     }
 
@@ -321,7 +397,7 @@ fun GameScreen() {
                 }
             }, onPress = {
                 delay(500L)
-                if (!isSuspended) {
+                if (!isSuspended && !speedUp) {
                     invincibilityMode = true
                 }
                 awaitRelease()
