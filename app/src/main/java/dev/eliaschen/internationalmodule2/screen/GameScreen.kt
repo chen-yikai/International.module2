@@ -158,6 +158,13 @@ fun GameScreen() {
     val speedUpVelocity = (deviceWidth / treeMovementDuration) * speedUpFactor
 
     LaunchedEffect(speedUp) {
+        var firstDone = false
+        var secondDone = false
+
+        fun checkToDispose() {
+            if (firstDone && secondDone) speedUp = false
+        }
+
         if (speedUp) {
             launch {
                 var treePos = treesMovement.value
@@ -183,7 +190,8 @@ fun GameScreen() {
                     )
                 )
                 treeMovementKey++
-                speedUp = false
+                firstDone = true
+                checkToDispose()
             }
             launch {
                 var treePos = secondTreeMovement.value
@@ -209,7 +217,8 @@ fun GameScreen() {
                     )
                 )
                 secondTreeMovementKey++
-                speedUp = false
+                secondDone = true
+                checkToDispose()
             }
         }
     }
