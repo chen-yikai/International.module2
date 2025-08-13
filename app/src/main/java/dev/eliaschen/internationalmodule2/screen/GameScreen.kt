@@ -15,7 +15,6 @@ import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -90,7 +89,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.Math.toDegrees
 import kotlin.math.atan2
-import kotlin.math.sqrt
 
 @Composable
 fun GameScreen() {
@@ -124,6 +122,7 @@ fun GameScreen() {
     val treeMovementDuration = 3000
     val gameObjectDuration = 4500
     val treeMovementVelocity = deviceWidth / treeMovementDuration
+    val gameObjectVelocity = 1f / gameObjectDuration
 
     // object movement
     val treesMovement = remember { Animatable(0f) }
@@ -155,18 +154,80 @@ fun GameScreen() {
     var speedUp by remember { mutableStateOf(false) }
     var invincibilityMode by remember { mutableStateOf(false) }
     var tiledLeft by remember { mutableStateOf(false) }
+    val slopeDecreaseDuration = 5000
     val slopeRightHeight = animateFloatAsState(
         targetValue = if (tiledLeft) 100f else 50f,
+        animationSpec = tween(slopeDecreaseDuration, easing = LinearEasing),
         label = "white slope right side height"
     )
     val slopeLeftHeight = animateFloatAsState(
         targetValue = if (tiledLeft) 100f else 230f,
+        animationSpec = tween(slopeDecreaseDuration, easing = LinearEasing),
         label = "white slope left side height"
     )
 
     val speedUpDuration = 3000
     val speedUpFactor = 4
     val speedUpVelocity = (deviceWidth / treeMovementDuration) * speedUpFactor
+    LaunchedEffect(tiledLeft) {
+        if (tiledLeft) {
+            val slowerSlopeDecreaseDuration = slopeDecreaseDuration + 3000
+            val startTime = System.currentTimeMillis()
+            launch {
+                var position = treesMovement.value
+                val targetPosition = -deviceWidth
+                while (isActive) {
+                    val elapsedTime = System.currentTimeMillis() - startTime
+                    val progress = elapsedTime.toFloat() / slowerSlopeDecreaseDuration
+                    val currentVelocity = treeMovementVelocity * (1f - progress)
+                    position -= currentVelocity * 16
+                    if (elapsedTime >= slowerSlopeDecreaseDuration) break
+                    if (targetPosition >= position) position = 0f
+                    treesMovement.snapTo(position)
+                    delay(16)
+                }
+            }
+            launch {
+                var position = secondTreeMovement.value
+                val targetPosition = 0f
+                while (isActive) {
+                    val elapsedTime = System.currentTimeMillis() - startTime
+                    val progress = elapsedTime.toFloat() / slowerSlopeDecreaseDuration
+                    val currentVelocity = treeMovementVelocity * (1f - progress)
+                    position -= currentVelocity * 16
+                    if (elapsedTime >= slowerSlopeDecreaseDuration) break
+                    if (targetPosition >= position) position = deviceWidth
+                    position -= (treeMovementVelocity / elapsedTime) * 16
+                    secondTreeMovement.snapTo(position)
+                    delay(16)
+                }
+            }
+            launch {
+                var position = gameObject.value
+                val targetPosition = 0f
+
+                while (isActive) {
+                    val elapsedTime = System.currentTimeMillis() - startTime
+                    if (elapsedTime >= slowerSlopeDecreaseDuration) break
+
+                    val progress = elapsedTime.toFloat() / slowerSlopeDecreaseDuration
+                    val currentVelocity = gameObjectVelocity * (1f - progress)
+
+                    if (targetPosition >= position) position = deviceWidth
+                    position -= currentVelocity * 16
+
+                    gameObject.snapTo(position)
+                    delay(16)
+                }
+                gameObject.stop()
+            }
+
+        } else {
+            treeMovementKey++
+            secondTreeMovementKey++
+            gameObjectKey++
+        }
+    }
 
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -586,6 +647,7 @@ fun GameScreen() {
 
         val playerOffsetHeight = animateFloatAsState(
             if (tiledLeft) 0f else playerBitmap.height / 2f,
+            animationSpec = tween(slopeDecreaseDuration, easing = LinearEasing),
             label = "Player Offset y"
         )
 
