@@ -3,25 +3,26 @@ package dev.eliaschen.internationalmodule2.screen
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.MediaPlayer
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,19 +66,19 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.debugInspectorInfo
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import dev.eliaschen.internationalmodule2.LocalGameData
 import dev.eliaschen.internationalmodule2.LocalNavController
 import dev.eliaschen.internationalmodule2.R
@@ -89,14 +90,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.Math.toDegrees
 import kotlin.math.atan2
+import kotlin.math.sqrt
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GameScreen() {
     val nav = LocalNavController.current
     val context = LocalContext.current
     val game = LocalGameData.current
     val device = LocalConfiguration.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     fun vibrate() =
         vibrator.vibrate(
@@ -152,10 +154,58 @@ fun GameScreen() {
     var isSuspended by remember { mutableStateOf(false) }
     var speedUp by remember { mutableStateOf(false) }
     var invincibilityMode by remember { mutableStateOf(false) }
+    var tiledLeft by remember { mutableStateOf(false) }
+    val slopeRightHeight = animateFloatAsState(
+        targetValue = if (tiledLeft) 100f else 50f,
+        label = "white slope right side height"
+    )
+    val slopeLeftHeight = animateFloatAsState(
+        targetValue = if (tiledLeft) 100f else 230f,
+        label = "white slope left side height"
+    )
 
     val speedUpDuration = 3000
     val speedUpFactor = 4
     val speedUpVelocity = (deviceWidth / treeMovementDuration) * speedUpFactor
+
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val x = event.values[0]
+                tiledLeft = x in 3f..15f
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    sensorManager.registerListener(
+                        listener,
+                        accelerometer,
+                        SensorManager.SENSOR_DELAY_GAME
+                    )
+                }
+
+                Lifecycle.Event.ON_PAUSE -> {
+                    sensorManager.unregisterListener(listener)
+                }
+
+                else -> {}
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            sensorManager.unregisterListener(listener)
+        }
+    }
 
     LaunchedEffect(speedUp) {
         var firstDone = false
@@ -185,7 +235,7 @@ fun GameScreen() {
                 treesMovement.animateTo(
                     targetValue = -deviceWidth,
                     animationSpec = tween(
-                        durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                        durationMillis = (remainingDistance / treeMovementVelocity).toInt(),
                         easing = LinearEasing
                     )
                 )
@@ -212,7 +262,7 @@ fun GameScreen() {
                 secondTreeMovement.animateTo(
                     targetValue = 0f,
                     animationSpec = tween(
-                        durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                        durationMillis = (remainingDistance / treeMovementVelocity).toInt(),
                         easing = LinearEasing
                     )
                 )
@@ -261,7 +311,7 @@ fun GameScreen() {
             treesMovement.animateTo(
                 targetValue = -deviceWidth,
                 animationSpec = tween(
-                    durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                    durationMillis = (remainingDistance / treeMovementVelocity).toInt(),
                     easing = LinearEasing
                 )
             )
@@ -278,7 +328,7 @@ fun GameScreen() {
             secondTreeMovement.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = (remainingDistance / (deviceWidth / treeMovementDuration)).toInt(),
+                    durationMillis = (remainingDistance / treeMovementVelocity).toInt(),
                     easing = LinearEasing
                 )
             )
@@ -534,13 +584,18 @@ fun GameScreen() {
         }
         val obstacleBitmap = ImageBitmap.imageResource(R.drawable.obstacle)
 
+        val playerOffsetHeight = animateFloatAsState(
+            if (tiledLeft) 0f else playerBitmap.height / 2f,
+            label = "Player Offset y"
+        )
+
         Canvas(
             modifier = Modifier
                 .zIndex(2f)
                 .fillMaxSize()
         ) {
-            val triangleStart = Offset(size.width, size.height - 50f)
-            val triangleEnd = Offset(0f, size.height - 230f)
+            val triangleStart = Offset(size.width, size.height - slopeRightHeight.value)
+            val triangleEnd = Offset(0f, size.height - slopeLeftHeight.value)
 
             val dx = triangleEnd.x - triangleStart.x
             val dy = triangleEnd.y - triangleStart.y
@@ -550,7 +605,7 @@ fun GameScreen() {
             val slopeCenter = (triangleStart + triangleEnd) / 2f
             val playerOffset = slopeCenter - Offset(
                 playerBitmap.width / 2f, playerBitmap.height.toFloat()
-            ) - Offset(0f, playerY.value * 400f) + Offset(-100f, playerBitmap.height / 2f)
+            ) - Offset(0f, playerY.value * 400f) + Offset(-100f, playerOffsetHeight.value)
 
             val slopeLength = (triangleEnd - triangleStart).getDistance()
             val space = 100f
