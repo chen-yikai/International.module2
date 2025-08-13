@@ -65,10 +65,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
@@ -102,6 +104,7 @@ fun GameScreen() {
         vibrator.vibrate(
             VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE)
         )
+    val haptic = LocalHapticFeedback.current
 
 
     val scope = rememberCoroutineScope()
@@ -335,6 +338,9 @@ fun GameScreen() {
     }
 
     LaunchedEffect(invincibilityMode) {
+        if (invincibilityMode) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
         while (invincibilityMode && game.score > 0) {
             game.score--
             delay(1000L)

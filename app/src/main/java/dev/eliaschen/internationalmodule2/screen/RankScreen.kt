@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -51,12 +52,14 @@ fun RankScreen() {
     val titles = listOf("ranking", "player name", "coin", "duration")
     var recentAdded by remember { mutableLongStateOf(0L) }
     val shine = remember { Animatable(0f) }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(game.rankings) {
         game.rankings.sortByDescending { it.coin }
         if (nav.navStack.takeLast(2).contains(Screen.Game)) {
             recentAdded = game.rankings.maxByOrNull { it.createdAt }!!
                 .id
+            listState.animateScrollToItem(game.rankings.indexOfFirst { it.id == recentAdded })
             repeat(3) {
                 shine.animateTo(
                     if (it == 1) 0f else 1f,
@@ -105,7 +108,7 @@ fun RankScreen() {
                         }
                     }
                 }
-                LazyColumn {
+                LazyColumn(state = listState) {
                     itemsIndexed(game.rankings) { index, item ->
                         val rank = listOf(index + 1, item.name, item.coin, item.duration)
                         Row(
